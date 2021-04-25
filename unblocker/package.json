@@ -1,0 +1,23 @@
+{
+  "name": "unblocker",
+  "version": "1.0.0",
+  "description": "Read-only access to websites.",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "npm ddp"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/limitedeternity/unblocker.git"
+  },
+  "keywords": [],
+  "author": "Marise Hayashi <@limitedeternity> (https://limitedeternity.github.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/limitedeternity/unblocker/issues"
+  },
+  "homepage": "https://unblocker.vercel.app/",
+  "dependencies": {
+    "request": "^2.88.2"
+  }
+}
