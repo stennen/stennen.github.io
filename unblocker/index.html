@@ -28,6 +28,7 @@
 	<script src="https://unpkg.com/@ungap/custom-elements-builtin"></script>
 	<script src="x-frame-bypass.js" type="module"></script>
 	<script>
+		// Kinda beta input thing, not sure if it's working yet.
 		function loadIframe() {
 			var input = document.getElementById("lol").value;
 			document.getElementById("yes").outerHTML = "<iframe id=\"yes\" is=\"x-frame-bypass\" src=\"" + input + "\"></iframe>";
