@@ -24,10 +24,17 @@
 			right: 0;
 		}
 	</style>
+	<input id="lol" value="https://reddit.com"><button onclick="loadIframe()">Go!</button>
 	<script src="https://unpkg.com/@ungap/custom-elements-builtin"></script>
 	<script src="x-frame-bypass.js" type="module"></script>
+	<script>
+		function loadIframe() {
+			var input = document.getElementById("lol").value;
+			document.getElementById("yes").outerHTML = "<iframe id=\"yes\" is=\"x-frame-bypass\" src=\"" + input + "\"></iframe>";
+		}
+	</script>
 </head>
 <body>
-	<iframe is="x-frame-bypass" src="https://reddit.com/"></iframe>
+	<iframe id="yes" is="x-frame-bypass" src="https://reddit.com/"></iframe>
 </body>
 </html>
