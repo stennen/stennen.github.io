@@ -3,20 +3,40 @@
 <head>
 	<title>Stennen calculator</title>
 <style>
+body {
+	background-color: black;
+}
 p.b {
 	font-family: Arial;
     font-size: 30px;
+    color: white;
 }
 p {
 	font-family: Arial;
     font-size: 20px;
+    color: white;
+}
+input {
+	background-color: black;
+    color: white;
+    border-color: white;
+}
+select {
+	background-color: black;
+    color: white;
+    border-color: white;
+}
+button {
+	color: white;
+    background-color: black;
+    border-color: white;
 }
 </style>
 </head>
 <body>
 
 <p class="b">Calculator</p>
-<p>This is a test calculator.</p>
+<p>A test calculator!<br><br>Type "pi" for pi.<br>Type "e" for Eulers number.</p>
 <label for="cars"></label>
 
 <select name="math" id="sel">
@@ -40,17 +60,30 @@ p {
 
 <script>
 function calc() {
+	// Declare inputs and selections
 	var sel = document.getElementById("sel").value;
     var n1 = document.getElementById("n1").value;
     var n2 = document.getElementById("n2").value;
+    
+    // Pi and Eulers number
     if (n1 == "pi") {
     	var n1 = Math.PI;
     }
     if (n2 == "pi") {
     	var n2 = Math.PI;
     }
+    if (n1 == "e") {
+    	var n1 = Math.E;
+    }
+    if (n2 == "e") {
+    	var n2 = Math.E;
+    }
+    
+    // Parse the float!
     var n1 = parseFloat(n1);
     var n2 = parseFloat(n2);
+    
+    // Finish the calculation
     if (sel == "+") {
     	document.getElementById("val").innerHTML = n1 + n2;
     }
