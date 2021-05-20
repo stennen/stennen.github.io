@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Stennen calculator</title>
+<style>
+p.b {
+	font-family: Arial;
+    font-size: 30px;
+}
+p {
+	font-family: Arial;
+    font-size: 20px;
+}
+</style>
+</head>
+<body>
+
+<p class="b">Calculator</p>
+<p>This is a test calculator.</p>
+<label for="cars"></label>
+
+<select name="math" id="sel">
+  <option value="+">Plus</option>
+  <option value="-">Subtract</option>
+  <option value="*">Multiply</option>
+  <option value="/">Divide</option>
+</select>
+<br>
+<br>
+
+<input id="n1" value="5"></input>
+<br>
+<input id="n2" value="2"></input>
+
+<br>
+<br>
+
+<button onclick="calc()">Calculate</button>
+<p id="val"></p>
+
+<script>
+function calc() {
+	var sel = document.getElementById("sel").value;
+    var n1 = document.getElementById("n1").value;
+    var n2 = document.getElementById("n2").value;
+    if (n1 == "pi") {
+    	var n1 = Math.PI;
+    }
+    if (n2 == "pi") {
+    	var n2 = Math.PI;
+    }
+    var n1 = parseFloat(n1);
+    var n2 = parseFloat(n2);
+    if (sel == "+") {
+    	document.getElementById("val").innerHTML = n1 + n2;
+    }
+    if (sel == "-") {
+    	document.getElementById("val").innerHTML = n1 - n2;
+    }
+    if (sel == "*") {
+    	document.getElementById("val").innerHTML = n1 * n2;
+    }
+    if (sel == "/") {
+    	document.getElementById("val").innerHTML = n1 / n2;
+    }
+
+}
+</script>
+</body>
+</html>
