@@ -54,6 +54,7 @@ button {
   <option value="-">Subtract</option>
   <option value="*">Multiply</option>
   <option value="/">Divide</option>
+  <option value="^">Force</option>
 </select>
 <br>
 <br>
@@ -105,6 +106,9 @@ function calc() {
     }
     if (sel == "/") {
     	document.getElementById("val").innerHTML = n1 / n2;
+    }
+    if (sel == "^") {
+    	document.getElementById("val").innerHTML = Math.pow(n1, n2);
     }
 
 }
