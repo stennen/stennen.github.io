@@ -66,8 +66,10 @@ input.a {
   <option value="/">Divide</option>
   <option value="^">Force</option>
   <option value="square">Square root</option>
-  <option value="sin">Sin</option>
-  <option value="sin">ln</option>
+  <option value="sin">Sine</option>
+  <option value="asin">Asine</option>
+  <option value="cos">Cosine</option>
+  <option value="ln">ln</option>
 </select>
 <br>
 <br>
@@ -130,14 +132,20 @@ function calc() {
     	document.getElementById("val").innerHTML = Math.sin(n1);
     }
     if (sel == "ln") {
-    	document.getElementById("val").innerHTML = Math.ln(n1);
+    	document.getElementById("val").innerHTML = Math.log(n1);
+    }
+    if (sel == "cos") {
+    	document.getElementById("val").innerHTML = Math.cos(n1);
+    }
+    if (sel == "asin") {
+    	document.getElementById("val").innerHTML = Math.asin(n1);
     }
 
 }
 function checkVal() {
 	var sel = document.getElementById("sel").value;
 	document.getElementById("n2").outerHTML = "<input id=\"n2\" value=\"2\" class=\"b\"></input>";
-	if (sel == "square" || sel == "sin" || sel == "ln") {
+	if (sel == "square" || sel == "sin" || sel == "ln" || sel == "cos" || sel == "asin") {
     	document.getElementById("n2").outerHTML = "<input id=\"n2\" value=\"2\" class=\"a\"></input>";
     }
 }
