@@ -16,7 +16,7 @@ p {
     font-size: 25px;
     color: white;
 }
-input {
+input.b {
 	background-color: black;
     color: white;
     border-color: white;
@@ -44,6 +44,13 @@ button {
   color: black;
   background: white;
 }
+input.a {
+	color: black;
+    border-color: black;
+    background-color: black;
+    font-size: 1px;
+    border-size: 0px;
+}
 </style>
 </head>
 <body>
@@ -52,19 +59,20 @@ button {
 <p>A test calculator!<br><br>Type "pi" for pi.<br>Type "e" for Eulers number.</p>
 <label for="cars"></label>
 
-<select name="math" id="sel">
+<select name="math" id="sel" onchange="checkVal()">
   <option value="+">Plus</option>
   <option value="-">Subtract</option>
   <option value="*">Multiply</option>
   <option value="/">Divide</option>
   <option value="^">Force</option>
+  <option value="square">Square root</option>
 </select>
 <br>
 <br>
 
-<input id="n1" value="5"></input>
+<input id="n1" value="5" class="b"></input>
 <br>
-<input id="n2" value="2"></input>
+<input id="n2" value="2" class="b"></input>
 
 <br>
 <br>
@@ -113,7 +121,17 @@ function calc() {
     if (sel == "^") {
     	document.getElementById("val").innerHTML = Math.pow(n1, n2);
     }
+    if (sel == "square") {
+    	document.getElementById("val").innerHTML = Math.sqrt(n1);
+    }
 
+}
+function checkVal() {
+	var sel = document.getElementById("sel").value;
+	document.getElementById("n2").outerHTML = "<input id=\"n2\" value=\"2\" class=\"b\"></input>";
+	if (sel == "square") {
+    	document.getElementById("n2").outerHTML = "<input id=\"n2\" value=\"2\" class=\"a\"></input>";
+    }
 }
 </script>
 </body>
