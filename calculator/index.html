@@ -74,9 +74,9 @@ input.a {
 <br>
 <br>
 
-<input id="n1" value="5" class="b"></input>
+<input id="n1" value="5" class="b" onkeypress="checkKey()"></input>
 <br>
-<input id="n2" value="2" class="b"></input>
+<input id="n2" value="2" class="b" onkeypress="checkKey()"></input>
 
 <br>
 <br>
@@ -144,9 +144,15 @@ function calc() {
 }
 function checkVal() {
 	var sel = document.getElementById("sel").value;
-	document.getElementById("n2").outerHTML = "<input id=\"n2\" value=\"2\" class=\"b\"></input>";
+	document.getElementById("n2").outerHTML = "<input id=\"n2\" value=\"2\" class=\"b\" onkeypress=\"checkKey()\"></input>";
 	if (sel == "square" || sel == "sin" || sel == "ln" || sel == "cos" || sel == "asin") {
     	document.getElementById("n2").outerHTML = "<input id=\"n2\" value=\"2\" class=\"a\"></input>";
+    }
+}
+function checkKey() {
+	var x = event.which || event.keyCode;
+    if (x == "13") {
+    	calc();
     }
 }
 </script>
