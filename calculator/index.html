@@ -70,12 +70,14 @@ input.a {
   <option value="asin">Asine</option>
   <option value="cos">Cosine</option>
   <option value="ln">ln</option>
+  <option value="%">% of</option>
+  <option value="ran">Random number</option>
 </select>
 <br>
 <br>
 
 <input id="n1" value="5" class="b" onkeypress="checkKey()"></input>
-<br>
+<br id="ran1">
 <input id="n2" value="2" class="b" onkeypress="checkKey()"></input>
 
 <br>
@@ -108,7 +110,7 @@ function calc() {
     // Parse the float!
     var n1 = parseFloat(n1);
     var n2 = parseFloat(n2);
-    
+	
     // Finish the calculation
     if (sel == "+") {
     	document.getElementById("val").innerHTML = n1 + n2;
@@ -140,13 +142,25 @@ function calc() {
     if (sel == "asin") {
     	document.getElementById("val").innerHTML = Math.asin(n1);
     }
+    if (sel == "ran") {
+    	document.getElementById("val").innerHTML = getRan(n1, n2);
+    }
+    if (sel == "%") {
+    	var pr = n1 / 100;
+        var re = pr * n2;
+    	document.getElementById("val").innerHTML = re;
+    }
 
 }
 function checkVal() {
 	var sel = document.getElementById("sel").value;
 	document.getElementById("n2").outerHTML = "<input id=\"n2\" value=\"2\" class=\"b\" onkeypress=\"checkKey()\"></input>";
+    document.getElementById("ran1").outerHTML = "<br id=\"ran1\">";
 	if (sel == "square" || sel == "sin" || sel == "ln" || sel == "cos" || sel == "asin") {
     	document.getElementById("n2").outerHTML = "<input id=\"n2\" value=\"2\" class=\"a\"></input>";
+    }
+    if (sel == "ran") {
+    	document.getElementById("ran1").outerHTML = "<p id=\"ran1\">To</p>";
     }
 }
 function checkKey() {
@@ -154,6 +168,11 @@ function checkKey() {
     if (x == "13") {
     	calc();
     }
+}
+function getRan(min, max) {
+  min = Math.ceil(min);
+  max = Math.floor(max);
+  return Math.floor(Math.random() * (max - min + 1) + min);
 }
 </script>
 </body>
