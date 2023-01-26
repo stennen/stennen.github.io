@@ -3109,7 +3109,7 @@ Game.Launch=function()
 		if (Game.storeToRebuild) Game.RebuildStore();
 		if (Game.upgradesToRebuild) Game.RebuildUpgrades();
 		
-		if (Game.T%(Game.fps)==0) document.title='Kunskapsporten Örebro - KS';
+		if (Game.T%(Game.fps)==0) document.title='Kunskapsporten - KS';
 		
 		Game.TickerAge--;
 		if (Game.TickerAge<=0 || Game.Ticker=='') Game.getNewTicker();
