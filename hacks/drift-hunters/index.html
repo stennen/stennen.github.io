@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Stennen official - Content Tree</title>
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+
+<p class="h">Stennen.github.io / Hacks / Drift Hunters</p>
+<p> </p>
+
+<h2>What is drift hunters?</h2>
+<p>Drift hunters is a car game created in Unity, and therefore it has supported for both PC, WebGL and mobile.</p>
+<img src="drift-hunters.jpg" alt="Drift Hunters Screenshot" width=500 height=300 title="Drift Hunters">
+<h2>What can be hacked?</h2>
+<p>There is money in the game used to buy cars, and this value is obfuscated which makes it fun to change .</p>
+
+<h2>Where is the money count stored?</h2>
+<p>The money count is stored in the UnityEngine defined <code>PlayerPrefs</code> class. This hack will only work on Windows, hence it's easier to access the values from here.<br>On Windows, the <code>PlayerPrefs</code> data is stored in the registry, inside the key <code>HKEY_CURRENT_USER\SOFTWARE\<span style="color:blue">author</span>\<span style="color:blue">game</span>\</code>, or specifically in this case, <code>HKEY_CURRENT_USER\SOFTWARE\studionum43\Drift Hunters\</code>.<br><br>In the WebGL version, this is stored in the <code>IndexedDB</code> feature.</p>
+
+<h2>Overview of the key</h2>
+<img src="regedit_screenshot.png" alt="Drift Hunters PlayerPrefs key open in registry" title="Drift Hunters PlayerPrefs key open in registry">
+<p>Looking at the values of the key, we can see that they are obfuscated, both in names and likely in value as well. <span title="Some of the values, (eg. more 'hackable' ones) are obfuscated. Not all!"><b>?</b></span></p>
+<h2>Understanding the value names</h2>
+<p>The value names are likely encoded in some way, but we also need to take in account how Unity processes these value keys.</p>
+
+<p>Let's take the value key <code>gearbox_h2771454977</code> I found. The game accesses this value by simply referring to it as <code>gearbox</code>. Unity actually appends that last bit of text (<code>_h2771454977</code>) for some reason, however the game does not need to care about that.</p>
+
+<h2>Finding out which value represents the money</h2>
+<p>I have tried to figure this out by simply traversing the values in the key and searching for the money count (<code>DWORD -> BYTES</code> encoded), with no results.</p>
+
+<p>So, instead I chose to monitor the changes of the keys. <i>The money count increases when the user drifts with a car in-game</i>.</p>
+<h3>Code for collecting registry keys</h3><p>
+<code>import winreg<br><br>
+
+def collect_vals():<br>
+&nbsp;&nbsp;&nbsp;&nbsp;key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"SOFTWARE\studionum43\Drift Hunters", 0, winreg.KEY_READ)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;result = ""<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;for i in range(0, winreg.QueryInfoKey(key)[1]):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;val = winreg.EnumValue(key, i)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;name, val, typ = val<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;result += "%s %s\n" % (name, val)<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;winreg.CloseKey(key)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;return result<br><br>
+
+def dump_values(outFile):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;f = open(outFile, "w")<br>
+&nbsp;&nbsp;&nbsp;&nbsp;f.write(collect_vals())<br>
+&nbsp;&nbsp;&nbsp;&nbsp;f.close()<br><br>
+
+dump_values("before_run.txt")<br><br>
+
+# ^^<br>
+# Run the game, gain money, then comment the line above, to then uncomment the following line<br>
+# V<br><br>
+
+#dump_values("after_run.txt")
+
+</code></p>
+
+<br><h3>Output</h3>
+<p>Output looks something like this:<br><br>
+<code title="Output from values collecting code">
+xtf={phzi4_h1210814998 b'0\x00'<br>
+xtf={phzi4l(._h744875580 b'0\x00'<br>
+xtf=wf(epx_h1035949798 b'0\x00'<br>
+xtf=wf(epxl(._h151408972 b'0\x00'<br>
+xtf=4qfwrtxh_h1835812432 b'm>>\x00'<br>
+...
+</code>
+<br>
+<p>Run the code (Python), then run the game, and drift a little to gain money, then exit the game<br>
+and then comment (put a <code>#</code> infront of the line) the <code>dump_values("before_run.txt")</code> line,<br>
+and remove the <code>#</code> from the <code>#dump_values("after_run.txt")</code> line.</p>
+
+<h3>Detecting changes made</h3>
+<p>Detecting changes made can be done by creating a dict from these two <code>.TXT</code> files, then iterating over the items of the dict and checking for news/changed values.</p>
+<p><code>
+
+def get_changed_keys():<br>
+&nbsp;&nbsp;&nbsp;&nbsp;with open("before_run.txt", "r") as f:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bef = f.readlines()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;with open("after_run.txt", "r") as f:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;after = f.readlines()<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;bef_dc = {}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;after_dc = {}<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;for b in bef:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bef_dc[b.split()[0]] = b.split()[1]<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;for b in after:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;after_dc[b.split()[0]] = b.split()[1]<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;for key, val in after_dc.items():<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if key in bef_dc:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if val != bef_dc[key]:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print("Changed key", key, "from", bef_dc[key], "to", val)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;else:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print("New key", key, "created with value", val)<br><br>
+
+get_changed_keys()
+</code></p>
+<br>
+<h2>Key changes detected</h2>
+<p>The output of the code I got was the following:<br><code>
+Changed key UnityGraphicsQuality_h1669003810 from 0 to 1<br>
+Changed key unity.player_session_elapsed_time_h192694777 from b'60520\x00' to b'144488\x00'<br>
+Changed key Graphics_h1352112080 from 0 to 1<br>
+Changed key tn(;pflrdp;_h1871615787 from b'?}}>m\x00' to b'?,,m<\x00'<br>
+Changed key unity.player_session_background_time_h123860221 from b'1700331794706\x00' to b'1700332918921\x00'<br>
+</code></p>
+
+<p>This means that the following keys were changed (converted to game referencable form):<br><code>UnityGraphicsQuality</code>, <code>unity.player_session_elapsed_time</code>, <code>unity.player_session_background_time</code>, and <code>tn(;pflrdp;</code>.</p>
+
+<p> - The <code>UnityGraphicsQuality</code> key is the quality of which the game will be running, so we can safely assume it's not related to the in game currency count.</p>
+
+<p> - The <code>unity.player_session_elapsed_time</code> key is the total time elapsed of the user being in the game in milliseconds, so we can ignore it.</p>
+
+<p> - The <code>unity.player_session_background_time</code> key also seems somewhat related to the amount of time the user has been in a game, so we can safely ignore this one as well.</p>
+
+<p>The exclusion of these keys brings us down to only one possible key for being the count of the money; the <code>tn(;pflrdp;</code> value. Now we need to figure out what the value of this key value is encoded, and how we can re-encode it as another value.</p>
+
+<h2>Decompiling the game - Finding out the encoding of the money count</h2>
+<p><i>Note:</i> At the time I ran the last piece of code, I had the game money go from <b>25501</b> to <b>26619</b>.</p>
+<p><i>Note:</i> I will be using ILSpy to decompile the game.</p>
+<hr>
+<p>In <b>ILSpy</b>, click on <b>File</b> -> <b>Open</b>, and navigate to the directory where the <b>Drift Hunters</b> executable is stored.</p>
+<p>Then navigate into <code>Drift Hunters_Data</code> -> <code>Managed</code> and select the <b>Assembly-CSharp.dll</b> file and click <code>Open</code>.</p>
+<p>To see the defenitions made, click on <b>+</b> next to the file's name and then click on the <b>+</b> on the <b>+</b> <code>{} -</code>.<br>
+You shall now have been greeted by all of the defenitions made by Drift Hunters.<br><br>
+
+To find the data loading part, navigate into the <code>General</code> class, and expand the <code>Start</code> function.</p>
+<img src="Start_func_screenshot.png" alt="Image featuring source code of the decompiled General.Start function." title="Image featuring source code of the decompiled General.Start function.">
+<p>Here you can see the basic functionality of the game setting up the data for a first time player.<br>
+In case the <code>'havefile'</code> key is not present in the <code>PlayerPrefs</code>, it will add the car <code>'AE86'</code> to the player's inventory and initialize the money count to <code>25,000</code>.</p>
+<p>Notice how the <code>PLAYERMONEY</code> property is not accessed from the Unity-Side defined PlayerPrefs, but instead the internally defined <code>PlayerValues</code> class.<br>CTRL + Click <code>PlayerValues</code> to open up the class decompiled.</p>
+<p>First, let's take a look at the <code>playerMoney()</code> function.<br><br>
+<code>
+public static int playerMoney()<br>
+{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;return Convert.ToInt32(getValue("PLAYERMONEY"));<br>
+}
+</code>
+<p>Great! We have now found out the type of the money, a <code>signed int</code>, or a 32-bit integer that can be both negative and positive.<br>Now let's CTRL + CLICK the <code>getValue</code> function to retrieve its definition.<br><br>
+
+<code title="Definition of the General.getValue function, used for retrieving a encoded value and then decode it.">
+
+public static string getValue(string key)<br>
+{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;string text = string.Empty;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;int length = key.Length;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;for (int i = 0; i < length; i++)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;text += codeMap[key[i]];<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;string @string = PlayerPrefs.GetString(text);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;string text2 = string.Empty;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;int length2 = @string.Length;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;for (int j = 0; j < length2; j++)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;text2 += decodeMap[@string[j]];<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;return text2;<br>
+}
+
+</code></p>
+<p>Nice! We have now found out how both the name of the key and how the value of it is encoded!<br>
+As you can see, it's using its own table for encoding/decoding. Let's CTRL + Click <code>codeMap</code> to get the encoding map.<br><br>
+<code title="Encoding table of the values/keys">
+private static Dictionary&lt;char, char&gt; codeMap = new Dictionary&lt;char, char&gt;<br>
+{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;{ 'A', '(' },
+  { 'B', 'w' },
+  { 'C', 'u' },
+  { 'D', 'a' },
+  { 'E', 'p' },
+  { 'F', 'o' },
+  { 'G', 'z' },
+  { 'H', 'i' },
+  { 'I', 'h' },
+  { 'J', 's' },<br>&nbsp;&nbsp;&nbsp;
+  { 'K', 'e' },
+  { 'L', 'n' },
+  { 'M', 'l' },
+  { 'N', 'd' },
+  { 'O', 'r' },
+  { 'P', 't' },
+  { 'Q', 'y' },
+  { 'R', 'f' },
+  { 'S', 'x' },
+  { 'T', '4' },<br>&nbsp;&nbsp;&nbsp;
+  { 'U', 'q' },
+  { 'V', 'b' },
+  { 'W', '{' },
+  { 'X', '.' },
+  { 'Y', ';' },
+  { 'Z', ']' },
+  { '0', '>' },
+  { '1', 'm' },
+  { '2', '?' },
+  { '3', '0' },<br>&nbsp;&nbsp;&nbsp;
+  { '4', ':' },
+  { '5', '}' },
+  { '6', ',' },
+  { '7', '+' },
+  { '8', '-' },
+  { '9', '<' },
+  { ',', ')' },
+  { '|', '[' },
+  { '_', '=' },
+  { '{', '1' },<br>&nbsp;&nbsp;&nbsp;
+  { '}', '7' },
+  { '-', '*' },
+  { '.', '^' }<br>
+};
+</code></p></p>
+<p>Nice! This obviously means that the <code>decodeMap</code> map is the same as this but key-value swapped.</p>
+<p><code title="Encoding dict of the values/keys, but for Python instead of C#.">
+encode_table = {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;'A': '(', 'B': 'w', 'C': 'u', 'D': 'a', 'E': 'p', 'F': 'o', 'G': 'z',<br>
+&nbsp;&nbsp;&nbsp;&nbsp;'H': 'i', 'I': 'h', 'J': 's', 'K': 'e', 'L': 'n', 'M': 'l', 'N': 'd',<br>
+&nbsp;&nbsp;&nbsp;&nbsp;'O': 'r', 'P': 't', 'Q': 'y', 'R': 'f', 'S': 'x', 'T': '4', 'U': 'q',<br>
+&nbsp;&nbsp;&nbsp;&nbsp;'V': 'b', 'W': '{', 'X': '.', 'Y': ';', 'Z': ']', '0': '>', '1': 'm',<br>
+&nbsp;&nbsp;&nbsp;&nbsp;'2': '?', '3': '0', '4': ':', '5': '}', '6': ',', '7': '+', '8': '-',<br>
+&nbsp;&nbsp;&nbsp;&nbsp;'9': '<', ',': ')', '|': '[', '_': '=', '{': '1', '}': '7', '-': '*',<br>
+&nbsp;&nbsp;&nbsp;&nbsp;'.': '^'<br>
+}</code></p>
+<p>Here is the Python version of the <code>codeMap</code> map.<br>We can easily make the decode table of off this using this:</p>
+<p><code title="Swap keys/values from encode_table and store in decode_table.">decode_table = {val: key for key,val in encode_table.items()}</code></p>
+
+<p>Using this we can easily port encoding/decoding functions into another language, such as Python in this example:</p>
+<p><code title="Decoding function ported to Python">
+def drifthunters_decrypt(s):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;res = ''<br>
+&nbsp;&nbsp;&nbsp;&nbsp;for c in s:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if c == '\x00':<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return res<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;res += decode_table[c]<br>
+&nbsp;&nbsp;&nbsp;&nbsp;return res
+</code><code title="Encoding function ported to Python"><br><br>
+def drifthunters_encrypt(s):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;res = ''<br>
+&nbsp;&nbsp;&nbsp;&nbsp;for c in s:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;res += encode_table[c]<br>
+&nbsp;&nbsp;&nbsp;&nbsp;return res + '\x00'
+</code>
+<p>Let's try it:</p>
+<p><code title="Encoding/Decoding functions at successful work, encoding and decoding the PLAYERMONEY string.">
+&gt;&gt; drifthunters_encrypt("PLAYERMONEY")<br>
+tn(;pflrdp;&lt;0x00&gt;<br>
+&gt;&gt; drifthunters_decrypt("tn(;pflrdp;\x00")<br>
+PLAYERMONEY
+</code></p>
+<p>As you can see it works flawlessly. Now, we need to find the right value name in the key.</p>
+<p><code>
+def get_encrypted_valuekey(val):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'SOFTWARE\studionum43\Drift Hunters', 0, winreg.KEY_READ)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;enc_val = drifthunters_encrypt(val)[:-1] # exclude null terminator<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;for i in range(0, winreg.QueryInfoKey(key)[1]):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;val = winreg.EnumValue(key, i)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;name, val, typ = val<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if name.startswith(enc_val + '_'):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;winreg.CloseKey(key)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return drifthunters_decrypt(val.decode('ascii'))<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;winreg.CloseKey(key)<br>
+</code></p>
+<hr>
+<p><code>&gt;&gt; get_encrypted_valuekey("PLAYERMONEY")<br>
+26619
+</code></p><hr>
+<p>Great. We have now successfully retrieved the count of in game money, but what about changing it?<br>It's as simple as following:</p>
+<p><code title="Definition of Python function to change the encrypted key of Drift Hunters PlayerValues.">
+def set_encrypted_valuekey_val(keyname, val):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'SOFTWARE\studionum43\Drift Hunters', 0, winreg.KEY_READ | winreg.KEY_WRITE)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;enc_val = drifthunters_encrypt(keyname)[:-1] # exclude null terminator<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;for i in range(0, winreg.QueryInfoKey(key)[1]):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;v = winreg.EnumValue(key, i)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;name, _, typ = v<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if name.startswith(enc_val + '_'):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;winreg.SetValueEx(key, name, 0, typ, drifthunters_encrypt(str(val)).encode())<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;winreg.CloseKey(key)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return<br><br>
+          
+&nbsp;&nbsp;&nbsp;&nbsp;winreg.CloseKey(key)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;raise FileNotFoundError<br>
+</code></p>
+<p>Now let's try it:</p>
+<hr><p><code>
+
+&gt;&gt; get_encrypted_valuekey("PLAYERMONEY")<br>
+26619<br>
+&gt;&gt; set_encrypted_valuekey_val("PLAYERMONEY", 69)<br>
+None<br>
+&gt;&gt; get_encrypted_valuekey("PLAYERMONEY")<br>
+69
+
+</code></p><hr>
+<p>Great! Now for the moment of truth, see if the money count actually changed...</p>
+<img src="changed_money_screenshot.png" width=500 height=300>
+<p>It's safe to say that it did!</p>
+<p><a href="final_code.py">Final Code (Python)</a></p>
+<hr>
+<p>Come back for Part 2, when this utility will be packed into a GUI and converted to C!</p>
+</body>
+</html>
