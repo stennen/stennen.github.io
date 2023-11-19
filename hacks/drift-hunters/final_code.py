@@ -7,7 +7,7 @@
 import winreg
 
 print("Info: This program was created by STENNEN.")
-print("Warning: This program should not be ran while Drift Hunters is still open!\n")
+print("Warning: This program can run while Drift Hunters is still open!\n")
 
 def collect_vals():
     key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'SOFTWARE\studionum43\Drift Hunters', 0, winreg.KEY_READ)

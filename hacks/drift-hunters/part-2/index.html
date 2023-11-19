@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Stennen official - Content Tree</title>
+<link rel="stylesheet" href="../../../style.css">
+</head>
+<body>
+
+<p class="h">Stennen.github.io / Hacks / Drift Hunters - Part 2</p>
+<a href="../index.html"><p>Part 1</p></a>
+<p> </p>
+
+<p>Hello again! In the previous part I went over on how to change the money count in the game Drift Hunters to anything, and today I'll make it into a GUI, using C and the win32 API.</p>
+<hr>
+<h2>Creating the project</h2>
+<p>Create a new project in Visual Studio, and then right click the project name in the solution and choose<br>
+<b>Properties</b> -> <b>Linker</b> -> <b>System</b>.</p>
+<p>In here, you should now change <code>SubSystem</code> from <code>Console (/SUBSYSTEM:CONSOLE)</code> to <code>Windows (/SUBSYSTEM:WINDOWS)</code>. Make sure you repeat this on all configurations, both Debug and Release!</p>
+
+<p>Doing this will prevent a console from appearing on start up.</p>
+<p>Change your current mode to <code>Release x86</code>, for maximum compatibility, and then create a <code>DriftHuntersHack.c</code>, and a <code>DriftHuntersHack.h</code> file.</p>
+<hr>
+<h2>Coding</h2>
+<p>In DriftHuntersHack.h, we will add the libraries needed, <code>Windows.h</code> and <code>winreg.h</code>.</p>
+<p><code title="Code for including the libraries Windows.h and winreg.h, as well as linking to advapi32.lib.">
+#pragma once<br>
+#include &lt;Windows.h&gt;<br>
+#include &lt;winreg.h&gt;<br><br>
+
+#pragma comment(lib, "Advapi32.lib") // winreg's imports file <br>
+</code></p>
+<p>Let's also set up some definitions that we'll have use of:</p>
+<p><code>
+#define DRIFT_HUNTERS_PLAYERPREFS_KEY TEXT("SOFTWARE\\studionum43\\Drift Hunters") // Registry key of Drift Hunters PlayerPrefs<br>
+</code></p>
+<p>Now let's set up the WinMain:</p>
+<p><code>
+#include "DriftHuntersHack.h"<br><br>
+
+#pragma warning(disable : 28251)<br><br>
+
+int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; PWSTR lpCmdLine, int nCmdShow ) {<br><br>
+	
+&nbsp;&nbsp;&nbsp;&nbsp;return 0;<br>
+}
+</code></p>
+<p>Now let's access the Drift Hunters PlayerPrefs key from here, using <code>RegOpenKeyEx</code>.</p>
+<p><code>
+LSTATUS WINAPI DFHOpenPlayerPrefsKey( PHKEY phKey ) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;return RegOpenKeyEx(HKEY_CURRENT_USER, DRIFT_HUNTERS_PLAYERPREFS_KEY,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;0, KEY_READ | KEY_WRITE, phKey);<br>
+}
+</code></p>
+<p>We can now create a global variable for this key and initialize it from the <code>wWinMain</code> function:</p>
+<p><code>
+HKEY hPlayerPrefsKey;<br>
+...<br><br>
+
+int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; PWSTR lpCmdLine, int nCmdShow ) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;LSTATUS lstError;<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;lstError = DFHOpenPlayerPrefsKey( &hPlayerPrefsKey );<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;if (lstError != ERROR_SUCCESS)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Drift Hunters key failed to open. Are you sure Drift Hunters is installed?"));<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;RegCloseKey( hPlayerPrefsKey );<br><br>&nbsp;&nbsp;&nbsp;&nbsp;...
+</code></p>
+<p>The helper function <code>DFHExitError</code> is defined as following:</p>
+<p><code>
+__declspec(noreturn) void WINAPI DFHExitError( LPCTSTR lpctszMessage ) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MessageBox(NULL, lpctszMessage, TEXT("Drift Hunters Hack - Stennen"), MB_ICONERROR);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;ExitProcess(1);<br>
+}
+</code></p>
+<p>Note that the <code>__declspec(noreturn)</code> makes the compiler aware that this function will not return.</p>
+<hr>
+<h2>Encoding & Decoding</h2>
+<p>As covered in the <a href="../index.html">last part</a>, Drift Hunters encodes some of its more sensitive <code>PlayerPrefs</code> keys & values with a special encoding. This encoding can easily be ported into C:</p>
+<p><code title="Encoding table">
+CONST CHAR pcEncodeTable[] = \<br>
+&nbsp;&nbsp;&nbsp;&nbsp;"A(BwCuDaEpFoGzHiIhJsKeLnMlNdOrPtQyRfSxT4UqVbW{X.Y;Z]0>1m2?304:5}6,7+8-9<,)|[_={1}7-*.^";
+</code></p>
+<p>In this "map", each character of an index with an even number is the unencoded character, and the following character is the encoded character, and vice versa for the decoding.<br>We can therefore easily create encoding & decoding functions:</p>
+<hr>
+<p><code title="Drift Hunters encoding function ported to C.">
+void WINAPI DFHEncodeString( LPSTR lpcszString ) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;while ( *lpcszString ){<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;for ( INT i = 0; i < (sizeof( pcEncodeTable ) - 1); i+=2 ) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (*lpcszString == pcEncodeTable[i]) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;*lpcszString = pcEncodeTable[i + 1];<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;lpcszString++;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+}
+</code></p>
+<hr>
+<p><code title="Drift Hunters decoding function ported to C.">
+void WINAPI DFHDecodeString( LPSTR lpcszString ) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;while ( *lpcszString ){<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;for ( INT i = 1; i < (sizeof( pcEncodeTable ) - 1); i+=2 ) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (*lpcszString == pcEncodeTable[i]) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;*lpcszString = pcEncodeTable[i - 1];<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;lpcszString++;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+}
+</code></p>
+<hr>
+<p>We can now use this to create a massive function that can encrypts a given value name & read and decrypts its contents.</p>
+<hr>
+<p><code title="Function to read a encoded registry key-value and its encoded contents">
+// Return value should be passed to 'free' when no longer used<br>
+LPSTR WINAPI DFHReadEncryptedValue( LPCSTR valueName ) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;CHAR pcEncodedName[MAX_PATH];<br>
+&nbsp;&nbsp;&nbsp;&nbsp;DWORD dwValuesCount;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;DWORD dwMaxValueNameLength;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;DWORD dwValueType;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;LSTATUS lStat;<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;if ( (strlen(valueName) + 1) > MAX_PATH )<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Too long property passed to " TEXT(__FUNCTION__)));<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;StringCchCopyA(pcEncodedName, MAX_PATH, valueName);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;DFHEncodeString( pcEncodedName );<br>
+&nbsp;&nbsp;&nbsp;&nbsp;StringCchCatA(pcEncodedName, MAX_PATH, "_");<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;DWORD dwNameLen = strlen( pcEncodedName );<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;if ( ERROR_SUCCESS != RegQueryInfoKey(hPlayerPrefsKey, NULL, NULL, NULL,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;NULL, NULL, NULL, &dwValuesCount,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&dwMaxValueNameLength, NULL, NULL, NULL))<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Failed to query key information"));<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;PCHAR pcValueName = ( PCHAR )malloc( dwMaxValueNameLength + 1 );<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;if ( !pcValueName )<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Out of memory"));<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;for (DWORD dwVal = 0; dwVal < dwValuesCount; dwVal++) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DWORD dwLen = dwMaxValueNameLength + 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DWORD dwDataLength = 0;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;lStat = RegEnumValueA(hPlayerPrefsKey, dwVal, pcValueName, &dwLen, NULL, &dwValueType, NULL, &dwDataLength);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (lStat != ERROR_SUCCESS)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("RegEnumValueA Failed"));<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (dwLen > dwNameLen) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (!memcmp(pcValueName, pcEncodedName, dwNameLen)) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dwDataLength++;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;PCHAR pcData = malloc( dwDataLength );<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if ( !pcData )<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Out of memory"));<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ZeroMemory(pcData, dwDataLength);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;lStat = RegGetValueA(hPlayerPrefsKey, NULL, pcValueName, RRF_RT_REG_BINARY,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; NULL, pcData, &dwDataLength);<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (ERROR_SUCCESS != lStat)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Failed to query value in DFHReadEncryptedValue"));<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;free( pcValueName );<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHDecodeString( pcData );<br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return pcData;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;free( pcValueName );<br>
+&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Failed to find wanted value, have you ran the game first?"));<br>
+}
+</code></p>
+<hr>
+<p>This function very likely might be overwhelming, so here's a break down of what it does:<br>
+<ul>
+	<li>It begins by checking the length of the name of the value that wants to be queried, and compares it to <code>MAX_PATH</code> (260). If it's greater than 258 (-1 due to underscore being added later on, additional -1 due to null terminator) it will throw an error.</li>
+
+	<br><li>It will then copy this over in a spare string, then encode it and concat a <code>_</code> to it. This is due to the format of the registry value names explained in the previous part. <br>Eg. <code>PLAYERMONEY</code> -> <code>tn(;pflrdp;_</code></li>
+
+	<br><li>It will then store the length of this encoded string in a variable, used for later.</li>
+
+	<br><li>Now, a the count of values in the key as well as the length of the longest value name are fetched. A string holder is allocated with the max length discovered.</li>
+
+	<br><li>It will next begin a loop, iterating through the values using <code>RegEnumValueA</code>, in this loop the following will happen in order:<br>
+		<ul>
+			<br><li>Fetch the name, type, and length of contents of the loop value.</li>
+			<br><li>Check if the name of the value starts with the encoded target value name created earlier (<code>pcEncodedName</code>), in a hacky way.</li>
+			<br><li>If it does, it will allocate a buffer for with the contents of the value can be stored in, and then read it into the buffer and decode it. This value will then be returned</li>
+		</ul>
+	</li>
+	<br><li>Out of the loop, if no matching value was found, it will throw an error.</li>
+</ul>
+</p>
+<p>We can now easily create a function for creating the value by copying the read function and changing it a bit:</p>
+<hr>
+<p><code title="Function to write a encoded registry key-value and its encoded contents">
+VOID WINAPI DFHWriteEncryptedValueContent( LPCSTR valueName, LPCSTR valueContents ) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;CHAR pcEncodedName[MAX_PATH];<br>
+&nbsp;&nbsp;&nbsp;&nbsp;CHAR pcEncodedValue[MAX_PATH];<br>
+&nbsp;&nbsp;&nbsp;&nbsp;DWORD dwValuesCount;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;DWORD dwMaxValueNameLength;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;DWORD dwValueType;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;LSTATUS lStat;<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;if ( (strlen(valueName) + 1) >= MAX_PATH )<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Too long property passed to " TEXT(__FUNCTION__)));<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;if ( strlen(valueContents) >= MAX_PATH )<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Too long value passed to " TEXT(__FUNCTION__)));<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;StringCchCopyA(pcEncodedName, MAX_PATH, valueName);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;DFHEncodeString( pcEncodedName );<br>
+&nbsp;&nbsp;&nbsp;&nbsp;StringCchCatA(pcEncodedName, MAX_PATH, "_");<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;StringCchCopyA(pcEncodedValue, MAX_PATH, valueContents);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;DFHEncodeString( pcEncodedValue );<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;DWORD dwNameLen = strlen( pcEncodedName );<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;if ( ERROR_SUCCESS !=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;RegQueryInfoKey(hPlayerPrefsKey, NULL, NULL, NULL,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;NULL, NULL, NULL, &dwValuesCount,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&dwMaxValueNameLength, NULL, NULL, NULL))<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Failed to query key information"));<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;PCHAR pcValueName = ( PCHAR )malloc( dwMaxValueNameLength + 1 );<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;if ( !pcValueName )<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Out of memory"));<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;for (DWORD dwVal = 0; dwVal < dwValuesCount; dwVal++) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DWORD dwLen = dwMaxValueNameLength + 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;lStat = RegEnumValueA(hPlayerPrefsKey, dwVal, pcValueName, &dwLen, NULL, &dwValueType, NULL, NULL);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (lStat != ERROR_SUCCESS)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("RegEnumValueA Failed"));<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (dwLen > dwNameLen) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (!memcmp(pcValueName, pcEncodedName, dwNameLen)) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;lStat = RegSetValueExA(hPlayerPrefsKey, pcValueName, 0, REG_BINARY,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (CONST BYTE*)pcEncodedValue, strlen(pcEncodedValue) + 1);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (ERROR_SUCCESS != lStat)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError( TEXT("Failed to set value using RegSetValueExA") );<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;free( pcValueName );<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;free( pcValueName );<br>
+&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Failed to find value in DFHWriteEncryptedValueContent"));<br>
+}
+</code></p><hr>
+<p>We can now easily create a function to fetch the current amount of money in Drift Hunters:</p>
+<hr><p><code title="Function to retrieve the current amount of in-game money.">
+INT WINAPI DFHGetMoney(void) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;PSTR pcszMoney = DFHReadEncryptedValue("PLAYERMONEY");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;INT nMoney = strtol(pcszMoney, NULL, 10);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;free( pcszMoney );<br>
+&nbsp;&nbsp;&nbsp;&nbsp;return nMoney;<br>
+}
+</code></p><hr>
+<p>Now let's create a global variable that represents the current amount of money (when last fetched).</p>
+<hr><p><code title="Code to initialize the current money count to 0.">INT currentMoneyCount = 0;</code></p><hr>
+<p>Now we can continue the <code>wWinMain</code> function to retrieve the current money count.</p>
+<hr><p><code title="Code to update the current money count.">&nbsp;&nbsp;&nbsp;&nbsp;currentMoneyCount = DFHGetMoney( );</code></p><hr>
+<p>Now let's try making a Windowed GUI for this. I will go for a simple, not so detailed style but you can do whatever you feel like.<br>
+First, let's create & register a window class.</p>
+<hr><p><code title="Code to setup & register the wndClass.">&nbsp;&nbsp;&nbsp;&nbsp;WNDCLASSEX wndClass;<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;ZeroMemory(&wndClass, sizeof( WNDCLASSEX ));<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;wndClass.lpszClassName = TEXT("Drift Hunters Hack By Stennen");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;wndClass.hCursor = LoadCursor(NULL, IDC_ARROW);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;wndClass.hbrBackground = ( HBRUSH )(COLOR_WINDOW + 1);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;wndClass.hInstance = hInstance;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;wndClass.lpfnWndProc = DFHWndProc;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;wndClass.style = CS_VREDRAW | CS_HREDRAW;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;wndClass.cbSize = sizeof( WNDCLASSEX );<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;if ( !RegisterClassEx(&wndClass) )<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Failed to register WndClass"));</code></p><hr>
+<p><code>CS_VREDRAW | CS_HREDRAW</code> means that whenever the window is resized both vertically or horizontally, the entire window will be redrawn.<br><i style="cursor: pointer;"><code>IDC_ARROW</code></i> is the default arrow/pointer cursor, which will be shown whenever the user is hovering over the window.</p><p>We can now create and show the window:</p>
+
+<hr><p><code title="Create & show window.">&nbsp;&nbsp;&nbsp;&nbsp;HWND hWnd = CreateWindowEx(0, wndClass.lpszClassName, TEXT("Drift Hunters Hack - Stennen"),<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 450, 210, NULL,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; NULL, hInstance, NULL);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;if ( !hWnd )<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHExitError(TEXT("Failed to create window"));<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;ShowWindow(hWnd, nCmdShow);</code></p><hr>
+
+<p>Then we can handle the messages and free up some memory after the window got closed:</p>
+<hr><p><code title="Message loop.">&nbsp;&nbsp;&nbsp;&nbsp;MSG msg;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;while ( GetMessage(&msg, 0, 0, 0) > 0 ) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TranslateMessage(&msg);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DispatchMessage(&msg);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;UnregisterClass(wndClass.lpszClassName, hInstance);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;RegCloseKey( hPlayerPrefsKey );<br>
+&nbsp;&nbsp;&nbsp;&nbsp;return 0;</code></p><hr>
+<p>We can now start creating the <code>wndProc</code>.</p>
+<hr><p><code title="wndProc definition.">#pragma warning(disable : 6385)<br>
+LRESULT CALLBACK DFHWndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam ) {</code></p><hr>
+<p>The warning <code>6385</code> is in this function brought up, but as a false-positive. We silence it using <code>#pragma warning(disable)</code>.</p>
+<p>Now let's setup the variables we'll use:</p>
+<hr><p><code title="Variable declarations.">&nbsp;&nbsp;&nbsp;&nbsp;PAINTSTRUCT ps;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;HDC hDC;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;HFONT hFont;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;static HFONT hInputFont = NULL;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;HBRUSH hbr;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;TCHAR txt[256];<br>
+&nbsp;&nbsp;&nbsp;&nbsp;INT nTextLength;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;static HWND hWndInput = NULL;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;static HWND hWndButton = NULL;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;CHAR inputData[10];</code></p><hr>
+<p>We can now start handling messages, firstly we'll handle the <code>WM_CREATE</code> message which is sent almost right after the window is created. Here we'll setup an input and a button.</p>
+<hr><p><code title="Handle WM_CREATE message.">&nbsp;&nbsp;&nbsp;&nbsp;switch ( uMsg ) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;case WM_CREATE:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hWndInput = CreateWindow(TEXT("EDIT"), 0, WS_BORDER | WS_CHILD | WS_VISIBLE,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 155, 129, 125, 24, hWnd, ( HMENU )CMD_INPUT,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ( HINSTANCE )GetWindowLong(hWnd, GWLP_HINSTANCE), 0);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hWndButton = CreateWindow(TEXT("BUTTON"), TEXT("Update"), WS_BORDER | WS_CHILD | WS_VISIBLE,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 285, 128, 80, 26, hWnd, ( HMENU )CMD_BUTTON,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ( HINSTANCE )GetWindowLong(hWnd, GWLP_HINSTANCE), 0);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hInputFont = CreateFont(24, 0, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE, DEFAULT_CHARSET,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TEXT("Arial"));<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// Change font of button and input. <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SendMessage(hWndInput,&nbsp;&nbsp;WM_SETFONT, ( WPARAM )hInputFont, TRUE);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SendMessage(hWndButton, WM_SETFONT, ( WPARAM )hInputFont, TRUE);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;</code></p><hr>
+
+<p>This code also changes the font of the input and button to the <span style="font-family: Arial;">Arial</span> font.</p>
+<p>Now let's handle the <code>WM_PAINT</code> message. This is sent to the window whenever it shall be painted.</p>
+
+<hr><p><code title="Handle WM_PAINT message.">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;case WM_PAINT:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hDC = BeginPaint(hWnd, &ps);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hFont = CreateFont(48, 0, 0, 0, FW_DONTCARE, FALSE, TRUE, FALSE, DEFAULT_CHARSET,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; TEXT("Arial"));<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hbr = CreateSolidBrush(0);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SelectObject(hDC, hbr);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Rectangle(hDC, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SelectObject(hDC, hFont);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SetBkMode(hDC, TRANSPARENT);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SetTextColor(hDC, RGB(255, 255, 255));<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DrawText(hDC, TEXT("DFH - Stennen"), -1, <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &(RECT) { 5, 5, ps.rcPaint.right, ps.rcPaint.bottom },<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; DT_LEFT | DT_NOCLIP);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DeleteObject(hFont);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hFont = CreateFont(24, 0, 0, 0, FW_DONTCARE, FALSE, TRUE, FALSE, DEFAULT_CHARSET,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; TEXT("Arial"));<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SelectObject(hDC, hFont);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SetTextColor(hDC, RGB(125, 125, 255));<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DrawText(hDC, TEXT("https://stennen.github.io/hacks/drift-hunters/"), -1, <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &(RECT) { 5, 55, ps.rcPaint.right, ps.rcPaint.bottom },<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; DT_LEFT | DT_NOCLIP);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DeleteObject(hFont);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hFont = CreateFont(24, 0, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE, DEFAULT_CHARSET,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; TEXT("Arial"));<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SelectObject(hDC, hFont);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SetTextColor(hDC, RGB(255, 255, 255));<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;StringCchPrintf(txt, 256, TEXT("Current money count is %d"), currentMoneyCount);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DrawText(hDC, txt, -1, <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &(RECT) { 5, 100, ps.rcPaint.right, ps.rcPaint.bottom },<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; DT_LEFT | DT_NOCLIP);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DrawText(hDC, TEXT("Wanted money:"), -1,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &(RECT) { 5, 129, ps.rcPaint.right, ps.rcPaint.bottom },<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; DT_LEFT | DT_NOCLIP);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DeleteObject(hbr);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DeleteObject(hFont);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;EndPaint(hWnd, &ps);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;</code></p><hr>
+<p>This creates this minimal, but decent looking UI:</p>
+<img src="window_screenshot.png">
+<p>Now let's make the window able to get destroyed, by handling the <code>WM_DESTROY</code> message:</p>
+<hr><p><code title="Handle WM_DESTROY message.">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;case WM_DESTROY:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;PostQuitMessage( 0 );<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DeleteObject( hInputFont );<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;</code></p><hr>
+<p>Great! But there's an issue with the input, we can enter anything, numerical or not.<br>Let's fix it:</p>
+
+<hr><p><code title="Limiting input of money to number only.">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;case WM_COMMAND:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;switch ( LOWORD( wParam ) ) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;case CMD_INPUT:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// There can be a max number of 9 nines before overflowing the<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// 32 bit integer limit. nTextLength includes NULL-terminator.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;nTextLength = min(GetWindowTextLengthA( hWndInput ) + 1, 10);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;GetWindowTextA(hWndInput, inputData, nTextLength);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (nTextLength <= 1)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (inputData[0] == '-' && nTextLength == 2)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;BOOLEAN bNegative = inputData[0] == '-',<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bChanged = FALSE;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;INT len = strlen( inputData );<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;for (INT i = bNegative; i < len; i++) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (!inputData[i])<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// Remove non-numerical characters<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (!(inputData[i] >= '0' && inputData[i] <= '9')) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;memcpy(inputData + i, inputData + i + 1, len - i);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;len--;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bChanged = TRUE;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;inputData[len] = 0;<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (bChanged)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SetWindowTextA(hWndInput, inputData);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;</code></p><hr>
+<p>Nice, we can now only input numbers.<br><i>Note: Drift Hunters actually supports negative amounts of money, so why ruin the fun by not allow it setting to a negative number?</i></p>
+<p>Let's continue adding code into the <code>WM_COMMAND</code> message by doing the final thing; Actually changing the money count!</p>
+
+<hr><p><code title="Updating money count to wanted money count on button press.">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;case CMD_BUTTON:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;nTextLength = min(GetWindowTextLengthA( hWndInput ) + 1, 10);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;GetWindowTextA(hWndInput, inputData, nTextLength);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (nTextLength <= 1)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (inputData[0] == '-' && nTextLength == 2)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;INT nWantedMoney = (INT)strtol(inputData, NULL, 10);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;StringCchPrintfA(inputData, 10, "%d", nWantedMoney);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SetWindowTextA(hWndInput, inputData); // Normalize number<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DFHWriteEncryptedValueContent("PLAYERMONEY", inputData); // Write new money count<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;currentMoneyCount = DFHGetMoney();<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;InvalidateRect(hWnd, NULL, TRUE); // Redraw the window; update money count<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;<br><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;</code></p><hr>
+<p>Now let's handle the case where none of these messages where recieved:</p>
+
+<hr><p><code title="Using DefWindowProc to perform default action of uncaught message.">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;default:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return DefWindowProc(hWnd, uMsg, wParam, lParam);</code></p><hr>
+<p>Awesome! We now finished the program entirely actually.</p>
+<hr>
+<h2>Attachments</h2>
+<p><a href="../DriftHuntersHack.exe">DriftHuntersHack.exe | 16.0KiB</a></p>
+<p><a href="DriftHuntersHack.c">DriftHuntersHack.C | 11.2KiB</a></p>
+<p><a href="DriftHuntersHack.h">DriftHuntersHack.H | 321B</a></p>
+</body>
+</html>
